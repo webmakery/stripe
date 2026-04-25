@@ -96,10 +96,11 @@ class WC_Stripe_Settings_Controller {
 
 		WC_Stripe_Helper::render_admin_header( $header, $return_text, $return_url );
 
-		$settings = WC_Stripe_Helper::get_stripe_settings();
-
-		$account_data_exists = ( ! empty( $settings['publishable_key'] ) && ! empty( $settings['secret_key'] ) ) || ( ! empty( $settings['test_publishable_key'] ) && ! empty( $settings['test_secret_key'] ) );
-		echo $account_data_exists ? '<div id="wc-stripe-account-settings-container"></div>' : '<div id="wc-stripe-new-account-container"></div>';
+		/*
+		 * Always render the account settings container so merchants can manually
+		 * enter API credentials without being forced through the Connect OAuth UI.
+		 */
+		echo '<div id="wc-stripe-account-settings-container"></div>';
 	}
 
 	/**

@@ -298,6 +298,11 @@ class WC_REST_Stripe_Account_Keys_Controller extends WC_Stripe_REST_Base_Control
 			}
 		}
 
+		$has_live_keys_changed = $current_account_keys['publishable_key'] !== $settings['publishable_key']
+			|| $current_account_keys['secret_key'] !== $settings['secret_key'];
+		$has_test_keys_changed = $current_account_keys['test_publishable_key'] !== $settings['test_publishable_key']
+			|| $current_account_keys['test_secret_key'] !== $settings['test_secret_key'];
+
 		// If all new keys are empty, then account is being disconnected. We should disable the payment gateway.
 		$is_deleting_account = ! $settings['publishable_key']
 							&& ! $settings['secret_key']
@@ -313,6 +318,22 @@ class WC_REST_Stripe_Account_Keys_Controller extends WC_Stripe_REST_Base_Control
 			$settings['test_refresh_token']   = '';
 			$this->record_manual_account_disconnect_track_event( WC_Stripe_Mode::is_test() );
 		} else {
+			// If keys were manually updated, clear OAuth connection metadata for those modes.
+			// This prevents showing reconnect/reauthenticate prompts after switching to manual keys.
+			if ( $has_live_keys_changed ) {
+				$settings['connection_type'] = '';
+				$settings['refresh_token']   = '';
+			}
+
+			if ( $has_test_keys_changed ) {
+				$settings['test_connection_type'] = '';
+				$settings['test_refresh_token']   = '';
+			}
+
+			if ( $has_live_keys_changed || $has_test_keys_changed ) {
+				$settings['pmc_enabled'] = '';
+			}
+
 			$this->record_manual_account_key_update_track_event( WC_Stripe_Mode::is_test() );
 		}
 
@@ -322,10 +343,7 @@ class WC_REST_Stripe_Account_Keys_Controller extends WC_Stripe_REST_Base_Control
 		WC_Stripe_Helper::update_main_stripe_settings( $settings );
 
 		// Disable all payment methods if all keys are different from the current ones
-		if ( $current_account_keys['publishable_key'] !== $settings['publishable_key']
-			|| $current_account_keys['secret_key'] !== $settings['secret_key']
-			|| $current_account_keys['test_publishable_key'] !== $settings['test_publishable_key']
-			|| $current_account_keys['test_secret_key'] !== $settings['test_secret_key'] ) {
+		if ( $has_live_keys_changed || $has_test_keys_changed ) {
 
 			$upe_gateway = new WC_Stripe_UPE_Payment_Gateway();
 			$upe_gateway->update_enabled_payment_methods( [ WC_Stripe_Payment_Methods::CARD, WC_Stripe_Payment_Methods::LINK ] );

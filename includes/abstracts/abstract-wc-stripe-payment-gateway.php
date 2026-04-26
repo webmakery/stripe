@@ -123,10 +123,28 @@ abstract class WC_Stripe_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 */
 	public function render_upe_settings() {
 		global $hide_save_button;
-		$hide_save_button    = true;
-		$is_stripe_connected = woocommerce_gateway_stripe()->connect->is_connected();
+		$hide_save_button = true;
 
-		echo $is_stripe_connected ? '<div id="wc-stripe-payment-gateway-container"></div>' : '<div id="wc-stripe-new-account-container"></div>';
+		/**
+		 * Controls whether the Stripe Connect new-account onboarding card should be rendered
+		 * in gateway settings when account keys are not connected.
+		 *
+		 * Returning false allows stores to skip OAuth onboarding and use manual key entry
+		 * directly in plugin settings.
+		 *
+		 * @since 10.0.0
+		 *
+		 * @param bool $render_connect_onboarding Whether to render the connect onboarding card.
+		 */
+		$render_connect_onboarding = (bool) apply_filters( 'wc_stripe_render_connect_onboarding', false );
+		$is_stripe_connected       = woocommerce_gateway_stripe()->connect->is_connected();
+
+		if ( ! $is_stripe_connected && $render_connect_onboarding ) {
+			echo '<div id="wc-stripe-new-account-container"></div>';
+			return;
+		}
+
+		echo '<div id="wc-stripe-payment-gateway-container"></div>';
 	}
 
 	/**

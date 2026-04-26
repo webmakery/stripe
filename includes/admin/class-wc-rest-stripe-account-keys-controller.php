@@ -303,6 +303,11 @@ class WC_REST_Stripe_Account_Keys_Controller extends WC_Stripe_REST_Base_Control
 		$has_test_keys_changed = $current_account_keys['test_publishable_key'] !== $settings['test_publishable_key']
 			|| $current_account_keys['test_secret_key'] !== $settings['test_secret_key'];
 
+		$has_live_manual_key_update = $this->has_unmasked_key_update( $request, $current_account_keys['publishable_key'], 'publishable_key' )
+			|| $this->has_unmasked_key_update( $request, $current_account_keys['secret_key'], 'secret_key' );
+		$has_test_manual_key_update = $this->has_unmasked_key_update( $request, $current_account_keys['test_publishable_key'], 'test_publishable_key' )
+			|| $this->has_unmasked_key_update( $request, $current_account_keys['test_secret_key'], 'test_secret_key' );
+
 		// If all new keys are empty, then account is being disconnected. We should disable the payment gateway.
 		$is_deleting_account = ! $settings['publishable_key']
 							&& ! $settings['secret_key']
@@ -320,17 +325,17 @@ class WC_REST_Stripe_Account_Keys_Controller extends WC_Stripe_REST_Base_Control
 		} else {
 			// If keys were manually updated, clear OAuth connection metadata for those modes.
 			// This prevents showing reconnect/reauthenticate prompts after switching to manual keys.
-			if ( $has_live_keys_changed ) {
+			if ( $has_live_keys_changed || $has_live_manual_key_update ) {
 				$settings['connection_type'] = '';
 				$settings['refresh_token']   = '';
 			}
 
-			if ( $has_test_keys_changed ) {
+			if ( $has_test_keys_changed || $has_test_manual_key_update ) {
 				$settings['test_connection_type'] = '';
 				$settings['test_refresh_token']   = '';
 			}
 
-			if ( $has_live_keys_changed || $has_test_keys_changed ) {
+			if ( $has_live_keys_changed || $has_test_keys_changed || $has_live_manual_key_update || $has_test_manual_key_update ) {
 				$settings['pmc_enabled'] = '';
 			}
 
@@ -360,6 +365,24 @@ class WC_REST_Stripe_Account_Keys_Controller extends WC_Stripe_REST_Base_Control
 	}
 
 	/**
+	 * Checks if a key parameter was manually updated by passing an unmasked value.
+	 *
+	 * @param WP_REST_Request $request       Full data about the request.
+	 * @param string          $current_value Current stored key value.
+	 * @param string          $key           Request parameter key.
+	 * @return bool
+	 */
+	private function has_unmasked_key_update( WP_REST_Request $request, string $current_value, string $key ): bool {
+		$new_value = wc_clean( wp_unslash( $request->get_param( $key ) ) );
+
+		if ( is_null( $new_value ) ) {
+			return false;
+		}
+
+		return $new_value !== $this->mask_key_value( $current_value );
+	}
+
+	/**
 	 * Tests the Stripe API Keys, using the received keys, or the unmasked version if they were not changed.
 	 *
 	 * This code was ported from the frontend as we no longer have the unmasked keys available in the client.
@@ -369,6 +392,7 @@ class WC_REST_Stripe_Account_Keys_Controller extends WC_Stripe_REST_Base_Control
 	 * @param WP_REST_Request $request Full data about the request.
 	 * @return WP_REST_Response
 	 */
+
 	public function test_account_keys( WP_REST_Request $request ) {
 		$live_mode   = wc_clean( wp_unslash( $request->get_param( 'live_mode' ) ) );
 		$publishable = wc_clean( wp_unslash( $request->get_param( 'publishable' ) ) );
